@@ -1,14 +1,10 @@
 package com.example.emample_sdk_notification
 
 import android.R
-import android.app.PendingIntent
-import android.app.PendingIntent.FLAG_ONE_SHOT
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.google.firebase.messaging.RemoteMessage
 import listener.FirebaseMessageListener
 import sdkFcm.SdkFcmHelper
@@ -19,10 +15,16 @@ class FcmListener : FirebaseMessageListener {
         Log.v("FcmListener1", "Token: $token")
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onPushReceived(remoteMessage: RemoteMessage, context: Context) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/"))
-        val pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE)
+//        val availableDeepLink=   remoteMessage.data.containsKey("deeplink")
+//        val availableUrl=   remoteMessage.data.containsKey("url")
+//        var deepLink: String?=null
+//        var url: String?=null
+//        if(availableDeepLink)
+//            deepLink = remoteMessage.data["deeplink"]
+//        else if (availableUrl)
+//             url =  remoteMessage.data["url"]
+
 
         Log.v("FcmListener1", "Push Message: $remoteMessage")
         remoteMessage.notification?.let { notification ->
@@ -32,8 +34,9 @@ class FcmListener : FirebaseMessageListener {
                 .setSmallIcon(R.drawable.ic_delete)
                 .setTitle(title)
                 .setBody(body)
-                .setChannelId("push_notification2")
-                .setClickAction(pendingIntent)
+                .setChannelId("push_notification")
+                .setWebViewUrl("https://google.com")
+//                .setDeepLink(deepLink)
                 .show()
 
         }

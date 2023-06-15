@@ -1,5 +1,6 @@
 package com.example.emample_sdk_notification
 
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,11 +12,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.emample_sdk_notification.ui.theme.EmampleSDKnotificationTheme
-import sdkFcm.SdkFcmHelper
+import sdkFcm.PermissionNotificationHandler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val permissionHandler = PermissionNotificationHandler(applicationContext)
+        permissionHandler.requestPermission(
+            this,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+            "We need your permission to write to external storage."
+        )
         setContent {
             EmampleSDKnotificationTheme {
                 // A surface container using the 'background' color from the theme
@@ -28,6 +35,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
 }
 
 @Composable

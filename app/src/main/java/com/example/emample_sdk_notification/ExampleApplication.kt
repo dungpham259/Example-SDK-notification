@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.StrictMode
 import androidx.annotation.RequiresApi
+import sdkFcm.PermissionNotificationHandler
 import sdkFcm.SdkFcmHelper
 import util.Logger
 
@@ -23,24 +24,26 @@ class ExampleApplication : Application() {
         super.onCreate()
         // initialize sdk
         val skdFcm = SdkFcmHelper.getInstance(applicationContext);
+
         skdFcm.initialise(Logger.LogLevel.VERBOSE, 4)
         skdFcm.addListener(FcmListener())
 
-        val path = ContentResolver.SCHEME_ANDROID_RESOURCE + "://" +applicationContext.packageName +"/";
-        val customSoundUri1 = Uri.parse(path+R.raw.custom_noti)
-        val customSoundUri2 = Uri.parse(path+R.raw.alarm_clock)
+        val path =
+            ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + applicationContext.packageName + "/";
+        val customSoundUri1 = Uri.parse(path + R.raw.custom_noti)
+        val customSoundUri2 = Uri.parse(path + R.raw.alarm_clock)
 
         skdFcm
             .createNotificationChannel(
+                "push_notification",
+                "Example FCM Notifications",
                 customSoundUri1,
-                channelId = "push_notification",
-                channelName = "Example FCM Notifications"
             )
         skdFcm
             .createNotificationChannel(
+                "push_notification2",
+                "Example FCM Notifications 2",
                 customSoundUri2,
-                channelId = "push_notification2",
-                channelName = "Example FCM Notifications 2"
             )
 
 //                val topics = ArrayList<String>()

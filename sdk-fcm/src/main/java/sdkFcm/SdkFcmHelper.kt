@@ -1,13 +1,15 @@
 package sdkFcm
 
+import activity.NotificationPermissionActivity
+import activity.WebViewActivity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 
@@ -17,10 +19,17 @@ import listener.FirebaseMessageListener
 import repository.Provider
 import util.Logger
 import util.isDebugBuild
-import java.util.Random
-
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 
 class SdkFcmHelper internal constructor(private var context: Context) {
+
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun isNotificationPermissionGranted() =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     private val logger = Logger.getLogger("SdkFcmHelper")
 
@@ -28,19 +37,24 @@ class SdkFcmHelper internal constructor(private var context: Context) {
 
     private var retryInterval: Long = DEFAULT_RETRY_INTERVAL
 
+    private val notificationManager: NotificationManagerCompat =
+        NotificationManagerCompat.from(context)
 
-     fun addListener(listener: FirebaseMessageListener) {
+
+    // ...
+
+    fun addListener(listener: FirebaseMessageListener) {
         listeners.add(listener)
     }
 
-     fun removeListener(listener: FirebaseMessageListener) {
+    fun removeListener(listener: FirebaseMessageListener) {
         listeners.remove(listener)
     }
 
     @JvmOverloads
     fun initialise(
         logLevel: Logger.LogLevel = Logger.LogLevel.ERROR,
-        retryInterval: Long = DEFAULT_RETRY_INTERVAL
+        retryInterval: Long = DEFAULT_RETRY_INTERVAL,
     ) {
         try {
             setupLogging(logLevel)
@@ -48,6 +62,7 @@ class SdkFcmHelper internal constructor(private var context: Context) {
             if (retryInterval >= 5) {
                 this.retryInterval = retryInterval
             }
+//       requestNotificationPermission(context)
             logger.log { " initialise() Initialising SDK. Log level - $logLevel" }
         } catch (e: Exception) {
             logger.log(Logger.LogLevel.ERROR, e) { " initialise() " }
@@ -84,7 +99,21 @@ class SdkFcmHelper internal constructor(private var context: Context) {
             }
         }
     }
-     fun subscribeToTopics(topics: List<String>) {
+
+//    private fun checkAndRequestNotificationPermissions(activity: Activity) {
+//        if (Build.VERSION.SDK_INT >= 33) {
+//            if (ContextCompat.checkSelfPermission(activity, POST_NOTIFICATIONS) != PermissionChecker.PERMISSION_GRANTED) {
+//                requestPermissionLauncher.launch(POST_NOTIFICATIONS);
+//
+//            } else {
+//                //permission already granted
+//
+//            }
+//        }
+//    }
+
+
+    fun subscribeToTopics(topics: List<String>) {
         AsyncExecutor.submit {
             try {
                 for (topic in topics) {
@@ -100,7 +129,7 @@ class SdkFcmHelper internal constructor(private var context: Context) {
         }
     }
 
-     fun unSubscribeTopic(topics: List<String>) {
+    fun unSubscribeTopic(topics: List<String>) {
         AsyncExecutor.submit {
             try {
                 for (topic in topics) {
@@ -113,7 +142,11 @@ class SdkFcmHelper internal constructor(private var context: Context) {
         }
     }
 
-
+    private fun requestNotificationPermission(context: Context) {
+        val intent = Intent(context, NotificationPermissionActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
 
     private fun registerForPush() {
         logger.log { " registerForPush(): Will register for push." }
@@ -158,24 +191,25 @@ class SdkFcmHelper internal constructor(private var context: Context) {
         Logger.isLogEnabled = isDebugBuild(context)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    fun createNotificationChannel(
+        channelId: String,
+        channelName: String,
+        soundUri: Uri?,
+        importance: Int = NotificationManager.IMPORTANCE_HIGH,
+        description: String? = null
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .build()
 
-    fun createNotificationChannel(soundUri: Uri,
-                                  channelId:String,
-                                  channelName:String,
-                                  descriptionChannel:String?="",
-                                  importance: Int?= NotificationManager.IMPORTANCE_HIGH) {
-        val channel = NotificationChannel(channelId, channelName, importance!!).apply {
-            description = descriptionChannel
+            val channel = NotificationChannel(channelId, channelName, importance).apply {
+                description?.let { setDescription(it) }
+                soundUri?.let { setSound(it, audioAttributes) }
+            }
+            notificationManager.createNotificationChannel(channel)
         }
-        val audioAttributes = AudioAttributes.Builder()
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .build()
-        channel.setSound(soundUri,audioAttributes)
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
     }
 
     class PushNotificationBuilder(private val context: Context) {
@@ -184,8 +218,9 @@ class SdkFcmHelper internal constructor(private var context: Context) {
         private var body: String? = null
         private var soundUri: Uri? = null
         private var smallIcon: Int = android.R.drawable.ic_dialog_info
-        private var clickAction: PendingIntent? = null
-
+        private var clickAction: Intent? = null
+        private var deepLink: String? = null
+        private var webViewUrl: String? = null
         fun setTitle(title: String): PushNotificationBuilder {
             this.title = title
 
@@ -196,7 +231,8 @@ class SdkFcmHelper internal constructor(private var context: Context) {
             this.body = body
             return this
         }
-        fun setChannelId(channelId:  String): PushNotificationBuilder {
+
+        fun setChannelId(channelId: String): PushNotificationBuilder {
             this.channelId = channelId
             return this
         }
@@ -212,29 +248,54 @@ class SdkFcmHelper internal constructor(private var context: Context) {
             return this
         }
 
-        fun setClickAction(pendingIntent: PendingIntent?): PushNotificationBuilder {
-            this.clickAction = pendingIntent
+        fun setClickAction(clickIntent: Intent): PushNotificationBuilder {
+
+            return this
+        }
+        fun setDeepLink(deepLink: String?): PushNotificationBuilder {
+            this.deepLink = deepLink
             return this
         }
 
-        private fun generateNotificationId(): Int {
-            val timestamp = System.currentTimeMillis()
-            val random = Random().nextInt(1000) // Choose any range for random numbers
-
-            return (timestamp + random).toInt()
+        fun setWebViewUrl(webViewUrl: String?): PushNotificationBuilder {
+            this.webViewUrl = webViewUrl
+            return this
         }
 
         fun show() {
+            val intent = when {
+                deepLink != null -> {
+                    // Open deep link
+                    Intent(Intent.ACTION_VIEW, Uri.parse(deepLink))
+                }
+                webViewUrl != null -> {
+                    // Open web view
+                    WebViewActivity.createIntent(context, webViewUrl)
+                }
+                clickAction!=null ->{
+                    clickAction
+                }
+                else -> {
+                    // Open the app
+                    context.packageManager.getLaunchIntentForPackage(context.packageName)
+                }
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_MUTABLE
+            )
 
             val notificationBuilder =
                 NotificationCompat.Builder(context, channelId)
                     .setSmallIcon(smallIcon)
                     .setContentTitle(title)
                     .setContentText(body).setAutoCancel(true)
-                    .setContentIntent(clickAction)
+                    .setContentIntent(pendingIntent)
 
 
-            val notificationId = generateNotificationId()
+            val notificationId = System.currentTimeMillis().toInt()
             val notificationManager = NotificationManagerCompat.from(context)
 //            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 //                val notificationChannel = NotificationChannel(
@@ -248,7 +309,6 @@ class SdkFcmHelper internal constructor(private var context: Context) {
         }
 
     }
-
 
 
     companion object {
